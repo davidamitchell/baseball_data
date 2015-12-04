@@ -1,0 +1,93 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <script src="js/vendor/modernizr-2.8.3.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    </head>
+    <body>
+
+        <div id="graph" style="xwidth:1000px;height:600px;"></div>
+
+
+        <link rel="stylesheet" href="css/normalize.min.css">
+        <link rel="stylesheet" href="css/main.css">
+    </body>
+
+    <script>
+      Array.prototype.max = function() {
+        return Math.max.apply(null, this);
+      };
+
+      Array.prototype.min = function() {
+        return Math.min.apply(null, this);
+      };
+
+      Array.prototype.normalise = function() {
+        var max = this.max();
+        var min = this.min();
+        var delta = max - min;
+        return this.map(function(i) { return (i-min)/delta })
+      };
+
+      Array.prototype.multiply = function(m) {
+        return this.map(function(i) { return m*i })
+      }
+
+      var wins = [];
+      var games = [];
+      var percents = [];
+      var hover_text = [];
+
+      $.getJSON('/data.json', function(players) {
+
+        for( var i = 0; i < players.length; i++ ){
+          var datum = players[i]
+          if (datum.team){
+            games.push(datum.games);
+            wins.push(datum.wins);
+            percents.push(datum.percent);
+            hover_text.push(datum.name + ' ' + (datum.percent * 100.0 ).toFixed(2));
+          }
+        }
+
+        var plot_data = {
+          y: games,
+          x: percents.normalise().multiply(100.0),
+          mode: 'markers',
+          type: 'scatter',
+          text: hover_text,
+          // hoverinfo:"x+y",
+          marker: {
+            // size: wins.normalise().multiply(100.0)
+          }
+        };
+
+        var plots = [ plot_data ];
+        var layout = {
+            xaxis: {title: 'Winning percentage'},
+            yaxis: {title: 'Games'},
+            margin: {t: 20},
+            hovermode: 'closest'
+        };
+
+        var g = document.getElementById('graph');
+        Plotly.plot( g, plots, layout, {showLink: false})
+
+
+
+      })
+      .error(function(jqXHR, textStatus, errorThrown) {
+        console.log("error ", errorThrown);
+        console.log("incoming Text ", jqXHR.responseText);
+      });
+
+    </script>
+</html>
