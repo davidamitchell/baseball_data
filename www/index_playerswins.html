@@ -1,0 +1,173 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <script src="js/vendor/modernizr-2.8.3.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    </head>
+    <body>
+
+        <div id="graph" style="xwidth:1000px;height:600px;"></div>
+
+
+        <link rel="stylesheet" href="css/normalize.min.css">
+        <link rel="stylesheet" href="css/main.css">
+    </body>
+
+    <script>
+
+      function rainbow(how_many){
+        var colours = [];
+        for (var i=0; i<how_many; ++i){
+          colours.push(distinct_colours(how_many, i));
+        }
+        return colours;
+      }
+      function distinct_colours(numOfSteps, step) {
+          // This function generates vibrant, "evenly spaced" colours (i.e. no clustering).
+          // This is ideal for creating easily distinguishable vibrant markers in Google Maps and other apps.
+          // Adam Cole, 2011-Sept-14
+          // HSV to RBG adapted from: http://mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript
+          var r, g, b;
+          var h = step / numOfSteps;
+          var i = ~~(h * 6);
+          var f = h * 6 - i;
+          var q = 1 - f;
+          switch(i % 6){
+              case 0: r = 1; g = f; b = 0; break;
+              case 1: r = q; g = 1; b = 0; break;
+              case 2: r = 0; g = 1; b = f; break;
+              case 3: r = 0; g = q; b = 1; break;
+              case 4: r = f; g = 0; b = 1; break;
+              case 5: r = 1; g = 0; b = q; break;
+          }
+          var c = "#" + ("00" + (~ ~(r * 255)).toString(16)).slice(-2) + ("00" + (~ ~(g * 255)).toString(16)).slice(-2) + ("00" + (~ ~(b * 255)).toString(16)).slice(-2);
+          return (c);
+      }
+
+      Array.prototype.max = function() {
+        return Math.max.apply(null, this);
+      };
+
+      Array.prototype.min = function() {
+        return Math.min.apply(null, this);
+      };
+
+      Array.prototype.normalise = function() {
+        var max = this.max();
+        var min = this.min();
+        var delta = max - min;
+        return this.map(function(i) { return (i-min)/delta })
+      };
+
+      Array.prototype.pluck = function(key) {
+        return this.map(function(i) { return i[key] })
+      }
+
+      Array.prototype.uniq = function() {
+        var uniques = [];
+        for (var i=0, l=this.length; i<l; i++) {
+          if (uniques.indexOf(this[i]) === -1){
+            uniques.push(this[i]);
+          }
+        }
+        return uniques;
+      }
+
+      Array.prototype.multiply = function(m) {
+        return this.map(function(i) { return m*i })
+      }
+
+      Array.prototype.exists_in = function(search_array) {
+        return this.some(function (v) {
+            return search_array.indexOf(v) >= 0;
+        });
+      }
+
+      var wins = [];
+      var games = [];
+      var percents = [];
+      var hover_text = [];
+      var teams = [];
+
+      var team_data = {};
+
+      $.getJSON('/data.json', function(players) {
+
+        teams = [1];
+        teams = players.pluck('team').uniq().sort();
+
+        teams.forEach(function(team) {
+          team_data[team] = {};
+          team_data[team]['games'] = [];
+          team_data[team]['wins'] = [];
+          team_data[team]['percent'] = [];
+          team_data[team]['n_percent'] = [];
+          team_data[team]['hover_text'] = [];
+        });
+
+        var normalised_percents = players.pluck('percent').normalise().multiply(100.0);
+
+        for( var i = 0; i < players.length; i++ ){
+          var datum = players[i]
+          var team = 1;
+          var team = datum.team;
+          if (
+              ['BAL','NYA','BOS','TBA','TOR'].exists_in([datum.team])
+              || true
+              ){
+            team_data[team]['games'].push(datum.games);
+            team_data[team]['wins'].push(datum.wins);
+            team_data[team]['percent'].push(datum.percent);
+            team_data[team]['n_percent'].push(normalised_percents[i]);
+            team_data[team]['hover_text'].push(datum.name + ' ' + (datum.percent * 100.0 ).toFixed(2) + ' ' + datum.team);
+          }
+        }
+        console.log(team_data);
+        var plots = teams.map(function(team) {
+
+          var plot_data = {
+            y: team_data[team]['games'],
+            // x: team_data[team]['percent'].normalise().multiply(100.0),
+            // x: team_data[team]['percent'],
+            x: team_data[team]['n_percent'],
+            mode: 'markers',
+            type: 'scatter',
+            name: team,
+            text: team_data[team]['hover_text'],
+            marker: {
+              // size: team_data[team]['wins'].normalise().multiply(100.0)
+              size: 15
+            }
+          };
+
+          return plot_data;
+        });
+
+        var layout = {
+            xaxis: {title: 'Winning percentage'},
+            yaxis: {title: 'Games'},
+            margin: {t: 20},
+            hovermode: 'closest'
+        };
+
+        var g = document.getElementById('graph');
+        Plotly.plot( g, plots, layout, {showLink: false})
+
+
+
+      })
+      .error(function(jqXHR, textStatus, errorThrown) {
+        console.log("error ", errorThrown);
+        console.log("incoming Text ", jqXHR.responseText);
+      });
+
+    </script>
+</html>
