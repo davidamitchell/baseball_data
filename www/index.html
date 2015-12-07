@@ -22,6 +22,7 @@
     </body>
 
     <script>
+
       Array.prototype.max = function() {
         return Math.max.apply(null, this);
       };
@@ -37,43 +38,50 @@
         return this.map(function(i) { return (i-min)/delta })
       };
 
+      Array.prototype.pluck = function(key) {
+        return this.map(function(i) { return i[key] })
+      }
+
+      Array.prototype.uniq = function() {
+        var uniques = [];
+        for (var i=0, l=this.length; i<l; i++) {
+          if (uniques.indexOf(this[i]) === -1){
+            uniques.push(this[i]);
+          }
+        }
+        return uniques;
+      }
+
       Array.prototype.multiply = function(m) {
         return this.map(function(i) { return m*i })
       }
 
-      var wins = [];
-      var games = [];
-      var percents = [];
-      var hover_text = [];
+      Array.prototype.exists_in = function(search_array) {
+        return this.some(function (v) {
+            return search_array.indexOf(v) >= 0;
+        });
+      }
 
-      $.getJSON('/data.json', function(players) {
 
-        for( var i = 0; i < players.length; i++ ){
-          var datum = players[i]
-          if (datum.team){
-            games.push(datum.games);
-            wins.push(datum.wins);
-            percents.push(datum.percent);
-            hover_text.push(datum.name + ' ' + (datum.percent * 100.0 ).toFixed(2));
-          }
-        }
+      $.getJSON('/data.json', function(stats) {
+
+        var plots = [];
 
         var plot_data = {
-          y: games,
-          x: percents.normalise().multiply(100.0),
+          y: stats['wp'].normalise().multiply(100.0),
+          x: stats['obp'].normalise().multiply(100.0),
           mode: 'markers',
           type: 'scatter',
-          text: hover_text,
-          // hoverinfo:"x+y",
           marker: {
-            // size: wins.normalise().multiply(100.0)
+            size: stats['nh'].normalise().multiply(100.0)
+            // size: 15
           }
         };
 
-        var plots = [ plot_data ];
+        plots.push( plot_data );
         var layout = {
-            xaxis: {title: 'Winning percentage'},
-            yaxis: {title: 'Games'},
+            yaxis: {title: 'Winning percentage'},
+            xaxis: {title: 'On base percentage'},
             margin: {t: 20},
             hovermode: 'closest'
         };

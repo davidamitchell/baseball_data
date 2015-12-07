@@ -8,6 +8,7 @@ conn.prepare( "insert_game_log",
               "insert into game_logs \
                     ( \
                       game_date, \
+                      year, \
                       visiting_team, \
                       home_team, \
                       visiting_team_score, \
@@ -15,7 +16,7 @@ conn.prepare( "insert_game_log",
                       visiting_team_lineup, \
                       home_team_lineup \
                     ) \
-               values ($1, $2, $3, $4, $5, $6, $7)")
+               values ($1, $2, $3, $4, $5, $6, $7, $8)")
 
 conn.prepare( "insert_player_game_log",
               "insert into player_game_logs \
@@ -30,6 +31,49 @@ conn.prepare( "insert_player_game_log",
                       is_home_team \
                     ) \
                values ($1, $2, $3, $4, $5, $6, $7, $8)")
+
+conn.prepare( "insert_players",
+              "insert into players \
+                    ( \
+                      name, \
+                      lahman_id, \
+                      retro_id, \
+                      birthdate \
+                    ) \
+               values ($1, $2, $3, $4)")
+
+conn.prepare( "insert_teams",
+              "insert into teams \
+                    ( \
+                      name, \
+                      lahman_id, \
+                      retro_id \
+                    ) \
+               values ($1, $2, $3)")
+
+
+conn.prepare( "insert_batting_stats",
+             "insert into batting_stats \
+                   ( \
+                     player_lahman_id, \
+                     year, \
+                     stint, \
+                     team_lahman_id, \
+                     games, \
+                     at_bats, \
+                     home_runs, \
+                     triples, \
+                     doubles, \
+                     singles, \
+                     hits, \
+                     walks, \
+                     intentional_walks, \
+                     strike_outs, \
+                     hit_by_pitch, \
+                     sac_hits, \
+                     sac_flys \
+                   ) \
+              values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)")
 
 def do_insert(data, conn)
 
@@ -208,6 +252,10 @@ class GameLogLine
     DateTime.strptime(line[ 0 ], "%Y%m%d").iso8601
   end
 
+  def year
+    DateTime.strptime(line[ 0 ], "%Y%m%d").year
+  end
+
   def build_player player_id
     player = get_player_from(player_id)
     PlayerGameLog.new({
@@ -227,6 +275,7 @@ class GameLogLine
       conn.exec_prepared("insert_game_log",
                           [
                             game_date,
+                            year,
                             visiting_team,
                             home_team,
                             visiting_team_score,
@@ -238,10 +287,11 @@ class GameLogLine
   end
 end
 
-
-
+puts ''
+puts 'loading retro game log data'
 Dir[ 'data/**/GL20*.*' ].each do |file|
 
+  puts "running file: #{file}"
   CSV.foreach(file, :headers => false) do |c|
     gl = GameLogLine.new(c)
 
@@ -253,27 +303,73 @@ Dir[ 'data/**/GL20*.*' ].each do |file|
     gl.save(conn)
   end
 end
-#
-#
-# Dir[ 'data/**/GL20*.*' ].each do
-#
-#   CSV.foreach('./data/gl2010_14/GL2014.TXT', :headers => false) do |c|
-#     data = {}
-#     data[ :game_date ] = c[0]
-#     data[ :visiting_team ] = c[3]
-#     data[ :home_team ] = c[6]
-#     data[ :visiting_team_score ] = c[9]
-#     data[ :home_team_score ] = c[10]
-#     v_lineup
-#     v_lineup_player_id  = [c[102], c[106], c[109], c[112], c[115], c[118], c[121], c[124], c[127], c[130]].uniq
-#     v_lineup_player     = [c[102], c[106], c[109], c[112], c[115], c[118], c[121], c[124], c[127], c[130]].uniq
-#     v_lineup_player_pos = ["1", c[106], c[109], c[112], c[115], c[118], c[121], c[124], c[127], c[130]].uniq
-#     data[ :visiting_team_lineup ] = v_lineup.join(",")
-#     h_lineup_player = [c[104], c[133], c[136], c[139], c[142], c[145], c[148], c[151], c[154], c[157]].uniq
-#     data[ :home_team_lineup ] = h_lineup.join(",")
-#
-#
-#     do_insert(data, conn)
-#
-#   end
-# end
+
+
+
+puts ''
+puts 'loading lahman master data'
+CSV.foreach('data/lahman/Master.csv', :headers => true) do |c|
+
+  by = c['birthYear'].to_i
+  bd = c['birthDay'].to_i == 0 ? 1 : c['birthDay'].to_i
+  bm = c['birthMonth'].to_i == 0 ? 1 : c['birthMonth'].to_i
+
+  conn.exec_prepared("insert_players",
+                      [
+                        "${c['nameFirst']} ${c['nameLast']}",
+                        c['playerID'],
+                        c['retroID'],
+                        DateTime.new(by,bm,bd).iso8601
+                      ]
+                     )
+end
+
+
+puts 'loading lahman team data'
+teams = {}
+CSV.foreach('data/lahman/Teams.csv', :headers => true) do |c|
+
+  if c['yearID'].to_i > 1990
+    unless teams["#{c['name']}#{c['teamID']}#{c['teamIDretro']}"]
+      conn.exec_prepared("insert_teams",
+                          [
+                            c['name'],
+                            c['teamID'],
+                            c['teamIDretro']
+                          ]
+                         )
+      teams["#{c['name']}#{c['teamID']}#{c['teamIDretro']}"] = true
+    end
+  end
+
+end
+
+puts 'loading lahman batting data'
+CSV.foreach('data/lahman/Batting.csv', :headers => true) do |c|
+
+  if c['yearID'].to_i > 1990
+    conn.exec_prepared("insert_batting_stats",
+                        [
+                          c['playerID'],
+                          c['yearID'],
+                          c['stint'],
+                          c['teamID'],
+                          c['G'],
+                          c['AB'],
+                          c['HR'].to_i,
+                          c['3B'].to_i,
+                          c['2B'].to_i,
+                          c['H'].to_i - c['HR'].to_i - c['3B'].to_i - c['2B'].to_i,
+                          c['H'],
+                          c['BB'],
+                          c['IBB'],
+                          c['SO'],
+                          c['HBP'],
+                          c['SH'],
+                          c['SF']
+                        ]
+                       )
+  end
+
+end
+puts ''

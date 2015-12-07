@@ -46,7 +46,7 @@ conn.exec( select_query ) do |result|
 end
 
 players_array = []
-players = players.delete_if{|k,v| v[:games] < 60}
+players = players.delete_if{|k,v| v[:games] < 200}
 players = players.each{|k,v| v[:percent] = 1.0 * v[:wins] / v[:games]}
 players = players.sort_by{|k,v| v[:percent]}.reverse
 # players = players.sort_by{|k,v| v[:percent]}
